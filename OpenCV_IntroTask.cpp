@@ -1,3 +1,9 @@
+/* This code was developed by Kenville Haynes
+
+Electrical and Electronic Engineering department 
+
+University of Nottingham */
+
 #include <opencv2/opencv.hpp>
 #include <iostream>
 
