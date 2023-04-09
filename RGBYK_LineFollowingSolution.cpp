@@ -352,7 +352,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
         // Draw largest contour on image
         drawContours(input_image, contours, largest_contour_index, Scalar(0, 0, 255), 2);
         // Show output image
-        imshow("Contour Image", input_image);
+        //imshow("Contour Image", input_image);
 
 
         if (!contours.empty())
@@ -392,10 +392,10 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         double match_triangle = compareImages(roi_mask, template_masks[2]);
                         double match_umbrella = compareImages(roi_mask, template_masks[3]);
 
-                        std::cout << "Match circle: " << match_circle << std::endl;
-                        std::cout << "Match star: " << match_star << std::endl;
-                        std::cout << "Match triangle: " << match_triangle << std::endl;
-                        std::cout << "Match umbrella: " << match_umbrella << std::endl;
+                        //std::cout << "Match circle: " << match_circle << std::endl;
+                        //std::cout << "Match star: " << match_star << std::endl;
+                        //std::cout << "Match triangle: " << match_triangle << std::endl;
+                       // std::cout << "Match umbrella: " << match_umbrella << std::endl;
 
                         // set a threshold value for the match value
                         float threshold = 75.0;
@@ -403,7 +403,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         // output the detected symbol or no symbol
                         if (match_circle > threshold)
                         {
-                            cout << "Circle detected" << endl;
+                           // cout << "Circle detected" << endl;
 
                             choice = 1;
 
@@ -412,7 +412,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         }
                         else if (match_star > threshold)
                         {
-                            cout << "Star detected" << endl;
+                           // cout << "Star detected" << endl;
 
                             choice = 2;
 
@@ -421,7 +421,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         }
                         else if (match_triangle > threshold)
                         {
-                            cout << "Triangle detected" << endl;
+                           // cout << "Triangle detected" << endl;
 
                             choice = 3;
 
@@ -430,7 +430,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         }
                         else if (match_umbrella > threshold)
                         {
-                            cout << "Umbrella detected" << endl;
+                           // cout << "Umbrella detected" << endl;
 
                             choice = 4;
 
@@ -439,7 +439,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         }
                         else
                         {
-                            cout << "No symbol detected" << endl;
+                           // cout << "No symbol detected" << endl;
                             
                             choice = 0;
 
@@ -459,7 +459,7 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
 
         }
 
-        cv::waitKey(1);
+        // cv::waitKey(1);
 
     }
     return choice;
@@ -609,6 +609,7 @@ int main(int argc, char** argv)
         else
         {
             // Follow the black line if no symbol detected
+            //cout << " Black line following" << endl;
             black_line();
         }
     }
