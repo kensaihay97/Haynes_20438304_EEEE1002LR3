@@ -1,3 +1,9 @@
+/* This code was developed by Kenville Haynes
+
+Electrical and Electronic Engineering department 
+
+University of Nottingham */
+
 #include <iostream>
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
@@ -11,21 +17,20 @@
 using namespace std;
 using namespace cv;
 
-int left_baseSpeed = 160;   //EEEBot motor stable speed
-int right_baseSpeed = 160;  //EEEBot motor stable speed
-
-int midServo = 52;   //EEEBot center steering
+int left_baseSpeed = 205;   // EEEBot motor stable speed
+int right_baseSpeed = 150;  // EEEBot motor stable speed
+int midServo = 53;   // EEEBot center steering
 
 int leftSpeed = 0;
 int rightSpeed = 0;
 int servoPos = 52;
 
-const int nano_address = 0x04;
+const int nano_address = 0x04; // Arduino Nano I2C address
 
 // PID tuning parameters
-const double Kp = 2.6;
-const double Ki = 0;// 0.01;
-const double Kd = 0.1; //0.1;
+const double Kp = 1.6;
+const double Ki = 0.02;
+const double Kd = 0.001;
 
 // PID error terms
 double pid_error = 0;
@@ -40,18 +45,18 @@ const int cam_width = 320;
 const int cam_height = 240;
 
 const int ROI_TOP = 0;
-const int ROI_BOTTOM = 30;
+const int ROI_BOTTOM = 1;
 const int ROI_LEFT = 0;
 const int ROI_RIGHT = cam_width;
 
-const int setpoint = 160; //cam_width / 2
+const int setpoint = 160; // Camera width / 2
 
-const int max_count  = 9600; //Max count for top 30 row of pixels
+const int max_count  = 420; //Max count for top row of pixels
 
 const int template_width = 350;
 const int template_height = 350;
 
-
+// Defining HSV Colour ranges
 Scalar lower_pink(143, 42, 38);
 Scalar upper_pink(169, 255, 255);
 
@@ -67,11 +72,10 @@ Scalar blue_high(140, 255, 255);
 Scalar black_low(0, 0, 0);
 Scalar black_high(180, 255, 50);
 
-
 Scalar yellow_low(20, 100, 100);
 Scalar yellow_high(40, 255, 255);
 
-// Transmit to Arduino Nano
+// Transmit motor speed and servo position to Arduino Nano over I2C
 void transmitArduino(int leftSpeed, int rightSpeed, int servoPos)
 {
     Pi2c i2c(nano_address);
@@ -91,6 +95,7 @@ void transmitArduino(int leftSpeed, int rightSpeed, int servoPos)
     i2c.~Pi2c();
 }
 
+// Constrain value function
 template <typename T>
 T constrain(T value, T minValue, T maxValue)
 {
@@ -109,6 +114,7 @@ T constrain(T value, T minValue, T maxValue)
 }
 
 
+// PID calculation function
 void PID(double pid_error)
 {
 
@@ -130,12 +136,9 @@ void PID(double pid_error)
     servoPos = constrain(servoPos, 0, 100);
 
     transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
-
-    //std::cout << "Error: " << error << std::endl;
-
-    //std::cout << "Output: " << output << std::endl;
 }
 
+// Process camera input image
 Mat process_frame(Scalar lower_bound, Scalar upper_bound)
 {
     // Capture image
@@ -153,116 +156,101 @@ Mat process_frame(Scalar lower_bound, Scalar upper_bound)
     inRange(hsv_frame, lower_bound, upper_bound, binary_frame);
     bitwise_not(binary_frame, binary_frame);
 
-//   cv::imshow("Process frame function", frame);
-    // Wait for the user to close the window
-//    cv::waitKey(1);
-
     return binary_frame;
 }
 
+//Red line following function
 void red_line()
 {
-
     double red_cnt = 0;
     double black_cnt = 0;
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Wait for 1s
 
     do
     {
-
         Mat binary_frame = process_frame(red_low, red_high);
         red_cnt = countNonZero(binary_frame);
 
         Mat black_binary_frame = process_frame(black_low, black_high);
         black_cnt = countNonZero(black_binary_frame);
 
-
-//       std::cout << "Red count: " << red_cnt << std::endl;
-//       std::cout << "Black count: " << black_cnt << std::endl;
-
         pid_error = (moments(binary_frame, true).m10 / moments(binary_frame, true).m00) - setpoint;
         PID(pid_error);
-
-
     }
-    while (black_cnt == max_count && red_cnt < max_count); //Do until black line is recognisied and no red is
+    while (black_cnt >= max_count && red_cnt < max_count); //Do until black line is recognised and no red is
 }
 
 
 void green_line()
 {
 
-//  double green_cnt = 0;
+    double green_cnt = 0;
     double black_cnt = 0;
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Wait for 1s
 
     do
     {
         Mat binary_frame = process_frame(green_low, green_high);
-//        green_cnt = countNonZero(binary_frame);
+        green_cnt = countNonZero(binary_frame);
 
         Mat black_binary_frame = process_frame(black_low, black_high);
         black_cnt = countNonZero(black_binary_frame);
-
-        // std::cout << "Red count: " << red_cnt << std::endl;
-        std::cout << "Black count: " << black_cnt << std::endl;
 
         pid_error = (moments(binary_frame, true).m10 / moments(binary_frame, true).m00) - setpoint;
         PID(pid_error);
 
     }
-    while (black_cnt >= max_count);
+    while (black_cnt >= max_count && green_cnt < max_count);
 }
 
 
 void blue_line()
 {
 
-//  double blue_cnt = 0;
+  double blue_cnt = 0;
     double black_cnt = 0;
+    
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Wait for 1s
 
     do
     {
         Mat binary_frame = process_frame(blue_low, blue_high);
-//        blue_cnt = countNonZero(binary_frame);
+        blue_cnt = countNonZero(binary_frame);
 
         Mat black_binary_frame = process_frame(black_low, black_high);
         black_cnt = countNonZero(black_binary_frame);
-
-        // std::cout << "Red count: " << red_cnt << std::endl;
-        std::cout << "Black count: " << black_cnt << std::endl;
 
         pid_error = (moments(binary_frame, true).m10 / moments(binary_frame, true).m00) - setpoint;
         PID(pid_error);
 
     }
-    while (black_cnt >= max_count);
+    while (black_cnt >= max_count && blue_cnt < max_count);
 
 }
 
 void yellow_line()
 {
 
-//  double yellow_cnt = 0;
+  double yellow_cnt = 0;
     double black_cnt = 0;
+    
+     std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Wait for 1s
 
     do
     {
         Mat binary_frame = process_frame(yellow_low, yellow_high);
-//      yellow_cnt = countNonZero(binary_frame);
+      yellow_cnt = countNonZero(binary_frame);
 
         Mat black_binary_frame = process_frame(black_low, black_high);
         black_cnt = countNonZero(black_binary_frame);
-
-        // std::cout << "Red count: " << red_cnt << std::endl;
-        std::cout << "Black count: " << black_cnt << std::endl;
 
         pid_error = (moments(binary_frame, true).m10 / moments(binary_frame, true).m00) - setpoint;
         PID(pid_error);
 
     }
-    while (black_cnt >= max_count);
+    while (black_cnt >= max_count && yellow_cnt < max_count);
 
 }
 
@@ -272,10 +260,6 @@ void black_line()
     double black_cnt = 0;
 
     Mat black_binary_frame = process_frame(black_low, black_high);
-    // black_cnt = countNonZero(black_binary_frame);
-
-    // std::cout << "Red count: " << red_cnt << std::endl;
-    // std::cout << "Black count: " << black_cnt << std::endl;
 
     pid_error = (moments(black_binary_frame, true).m10 / moments(black_binary_frame, true).m00) - setpoint;
     PID(pid_error);
@@ -283,7 +267,7 @@ void black_line()
 }
 
 
-
+// Load the symbol recognition templates
 void load_templates(vector<Mat> &template_masks)
 {
     // Load the four symbol templates
@@ -311,25 +295,19 @@ void load_templates(vector<Mat> &template_masks)
         Mat template_mask;
         inRange(template_hsv_image, lower_pink, upper_pink, template_mask);
 
-        resize(template_mask, template_mask, Size(template_width, template_height));
+        resize(template_mask, template_mask, Size(template_width, template_height)); // Resize to original template dimensions 
 
         template_masks.push_back(template_mask);
     }
 }
 
 
-
-
 bool symbol_rec(int &choice, const vector<Mat> &template_masks)
 {
-
-
-
     bool stop_program = false;
 
     // Define structuring elements for morphology operations
     Mat erode_element = getStructuringElement(MORPH_RECT, Size(3, 3));
-//   Mat dilate_element = getStructuringElement(MORPH_RECT, Size(3, 3));
 
     // Loop through each frame from the camera
     while (!stop_program)
@@ -338,28 +316,13 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
         // Capture image
         Mat input_image = captureFrame();
 
-        // Crop the image to the region of interest
-//        Rect input_image_roi(ROI_LEFT_SR, ROI_TOP_SR, ROI_RIGHT_SR - ROI_LEFT_SR, ROI_BOTTOM_SR - ROI_TOP_SR);
-//       input_image = input_image(input_image_roi);
-
-
         resize(input_image, input_image, Size(template_width, template_height));
-
 
         // Rotate the image by 180 degrees
         cv::flip(input_image, input_image, -1);
-        //Brighten the image
-        //input_image.convertTo(input_image, -1, 1.5, 0);
 
-        // Apply Gaussian blur to reduce noise
-//       GaussianBlur(input_image, input_image, Size(5, 5), 0);
         // Erode the mask to remove small objects
         erode(input_image, input_image, erode_element);
-        // Dilate the mask to fill gaps
-//        dilate(input_image, input_image, dilate_element);
-
-//        cv::imshow("Edit Image", input_image);
-
 
         // convert the ROI to HSV format
         Mat hsv_image;
@@ -368,13 +331,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
         // threshold the image to isolate the pink pixels
         Mat mask;
         inRange(hsv_image, lower_pink, upper_pink, mask);
-
-        // Display the image in a window
-        //cv::imshow("Input Mask image", mask);
-        /*
-                float pink_count = countNonZero(mask);
-                std::cout << "Pink count: " << pink_count << std::endl;
-        */
 
         // Find contours in the mask
         vector<vector<Point> > contours;
@@ -393,7 +349,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
             }
         }
 
-
         // Draw largest contour on image
         drawContours(input_image, contours, largest_contour_index, Scalar(0, 0, 255), 2);
         // Show output image
@@ -402,7 +357,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
 
         if (!contours.empty())
         {
-            //std::cout << "Contour not empty" << std::endl;
 
             // Find the four corners of the largest contour
             vector<Point> boundingContour;
@@ -413,9 +367,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
             {
                 // Align the image with the four corners
                 Mat aligned_image = transformPerspective(boundingContour, mask, template_width, template_height);
-
-                // Display the aligned image
-                //cv::imshow("Aligned Image", aligned_image);
 
                 if (aligned_image.cols > 60 && aligned_image.rows > 60)
                 {
@@ -433,28 +384,13 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
 
                         resize(roi_mask, roi_mask, Size(template_width, template_height));
 
-                        // Display the image in a window
-//                        cv::imshow("ROI image", roi_mask);
-
 
                         // compare the transformed image with the four symbol templates
-
 
                         double match_circle = compareImages(roi_mask, template_masks[0]);
                         double match_star = compareImages(roi_mask, template_masks[1]);
                         double match_triangle = compareImages(roi_mask, template_masks[2]);
                         double match_umbrella = compareImages(roi_mask, template_masks[3]);
-
-
-                        /*                    // Display the image in a window
-                                            cv::imshow("Circle template image", circle_template_mask);
-                                            // Display the image in a window
-                                            cv::imshow("Star template image", star_template_mask);
-                                            // Display the image in a window
-                                            cv::imshow("Triangle template image", triangle_template_mask);
-                                            // Display the image in a window
-                                            cv::imshow("Umbrella template image", umbrella_template_mask);
-                        */
 
                         std::cout << "Match circle: " << match_circle << std::endl;
                         std::cout << "Match star: " << match_star << std::endl;
@@ -463,8 +399,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
 
                         // set a threshold value for the match value
                         float threshold = 75.0;
-
-                        //int max_count = max({match_circle, match_star});
 
                         // output the detected symbol or no symbol
                         if (match_circle > threshold)
@@ -506,8 +440,10 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
                         else
                         {
                             cout << "No symbol detected" << endl;
+                            
+                            choice = 0;
 
-                            return false;
+                            return true;
                         }
 
                     }
@@ -516,10 +452,6 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
             }
             else if (boundingContour.size() != 4)
             {
-
-                //    cout << "Borders not detected" << endl;
-
-                //choice = 0;
 
                 return false;
 
@@ -533,67 +465,31 @@ bool symbol_rec(int &choice, const vector<Mat> &template_masks)
     return choice;
 }
 
-
+// Stop the EEEBot motors and centre the servo
 void PID_stop()
 {
-
-    //EEEBot is off the line
-
-    leftSpeed = 0; //left_baseSpeed + K * output;    //Left motor speed is base speed + scaling factor K multiplied by the PID output
-    rightSpeed = 0;//right_baseSpeed - K * output; //Right motor speed is base speed - scaling factor K multiplied by the PID output
-    servoPos = midServo; //Servo angle is the center angle + the PID output
-    transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
-
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    leftSpeed = 0; 
+    rightSpeed = 0;
+    servoPos = midServo; 
+    transmitArduino(leftSpeed, rightSpeed, servoPos);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); //Delay for 500ms
 }
 
 void PID_reverse()
 {
     //EEEBot is off the line
 
-    leftSpeed = -160; //left_baseSpeed + K * output;    //Left motor speed is base speed + scaling factor K multiplied by the PID output
-    rightSpeed = -160;//right_baseSpeed - K * output; //Right motor speed is base speed - scaling factor K multiplied by the PID output
-    servoPos = midServo; //Servo angle is the center angle + the PID output
-    transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
+    leftSpeed = -160; 
+    rightSpeed = -160;
+    servoPos = midServo;
+    transmitArduino(leftSpeed, rightSpeed, servoPos); 
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Delay for 200ms
 
 }
 
-void turnLeft()
-{
-    //EEEBot is off the line
-
-    leftSpeed = 160; //left_baseSpeed + K * output;    //Left motor speed is base speed + scaling factor K multiplied by the PID output
-    rightSpeed = 180;//right_baseSpeed - K * output; //Right motor speed is base speed - scaling factor K multiplied by the PID output
-    servoPos = 30; //Servo angle is the center angle + the PID output
-    transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
-
-}
-
-
-void turnRight()
-{
-    //EEEBot is off the line
-
-    leftSpeed = 180; //left_baseSpeed + K * output;    //Left motor speed is base speed + scaling factor K multiplied by the PID output
-    rightSpeed = 160;//right_baseSpeed - K * output; //Right motor speed is base speed - scaling factor K multiplied by the PID output
-    servoPos = 80; //Servo angle is the center angle + the PID output
-    transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
-
-}
-
-void goForward()
-{
-    //EEEBot is off the line
-
-    leftSpeed = 160; //left_baseSpeed + K * output;    //Left motor speed is base speed + scaling factor K multiplied by the PID output
-    rightSpeed = 160;//right_baseSpeed - K * output; //Right motor speed is base speed - scaling factor K multiplied by the PID output
-    servoPos = midServo; //Servo angle is the center angle + the PID output
-    transmitArduino(leftSpeed, rightSpeed, servoPos);  //Transmit to Arduino NANO over I2C which controls speed and servo
-
-
-}
-
+// Find the pink border of the symbol
 Rect find_pink_border_bounding_rect(Mat &mask)
 {
     vector<vector<Point>> contours;
@@ -622,93 +518,6 @@ Rect find_pink_border_bounding_rect(Mat &mask)
 }
 
 
-/*
-// Adjusts the car's position until it is within the desired range
-void adjustCarPosition()
-{
-
-
-    Mat input_image = captureFrame();
-
-//    resize(input_image, input_image, Size(320, 240));
-//    cv::flip(input_image, input_image, -1);
-
-//        cv::imshow("Adjust postion camera", input_image);
-    // Wait for the user to close the window
-//      cv::waitKey(1);
-
-    Mat hsv_image;
-    cvtColor(input_image, hsv_image, COLOR_BGR2HSV);
-
-    Mat mask;
-    inRange(hsv_image, lower_pink, upper_pink, mask);
-
-    Rect bounding_rect = find_pink_border_bounding_rect(mask);
-    Point centroid = (bounding_rect.tl() + bounding_rect.br()) * 0.5;
-
-    int error_x = centroid.x - input_image.cols / 2;
-    int error_y = centroid.y - input_image.rows / 2;
-
-//    std::cout << "Error X: " << error_x << std::endl;
-//    std::cout << "Error Y " << error_y << std::endl;
-
-    //EEEBot is off the line
-
-
-    if(error_x < 35 && error_x > -35 && error_y <62 && error_y > -62)
-    {
-        PID_stop();
-
-    }
-
-
-    // Check if pink pixels are detected
-      int pink_cnt = countNonZero(mask);
-
-       std::cout << "Pink count" << pink_cnt << std::endl;
-
-       if(pink_cnt < 7500)
-       {
-
-           PID_stop();
-           PID_reverse();
-
-       }
-
-
-       // Adjust car's position based on error
-       if (error_x > 35)
-       {
-
-           turnLeft();
-
-       }
-       else if(error_x < -35)
-       {
-           turnRight();
-       }
-       else if (error_y > 62)
-       {
-
-           goForward();
-       }
-       else if(error_y < -62)
-       {
-           PID_reverse();
-       }
-       else
-       {
-
-           // Stop the car once it is within the desired range
-           PID_stop();
-       }
-
-
-
-
-}*/
-
-
 int adjust_and_recognize(const vector<Mat> &template_masks)
 {
     int choice;
@@ -716,15 +525,9 @@ int adjust_and_recognize(const vector<Mat> &template_masks)
 
     while (!symbol_recognized)
     {
-
-//        cout << "Waiting for symbol " << endl;
-
-//        adjustCarPosition(); // Adjust the car position
         symbol_recognized = symbol_rec(choice,template_masks); // Try to recognize a symbol
     }
-
-//    cout << "Symbol recognized: " << choice << endl;
-
+    
     return choice;
 }
 
@@ -768,11 +571,9 @@ int main(int argc, char** argv)
 
         if (pink_detected)
         {
-
-           // std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
             PID_stop();
-            //PID_reverse();
+            
+            PID_reverse();
 
             int choice = adjust_and_recognize(template_masks);
 
@@ -780,23 +581,27 @@ int main(int argc, char** argv)
             switch (choice)
             {
             case 1:
-                cout << "Red line following" << endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                //cout << "Red line following" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 red_line();
                 break;
             case 2:
-                cout << "Green line following" << endl;
+                //cout << "Green line following" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 green_line();
                 break;
             case 3:
-                cout << "Blue line following" << endl;
+                //cout << "Blue line following" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 blue_line();
                 break;
             case 4:
-                cout << "Yellow line following" << endl;
+                //cout << "Yellow line following" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 yellow_line();
             default:
-                cout << " Default black line following" << endl;
+                //cout << " Default black line following" << endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 black_line();
                 break;
             }
@@ -804,20 +609,12 @@ int main(int argc, char** argv)
         else
         {
             // Follow the black line if no symbol detected
-            cout << "Black line following" << endl;
             black_line();
         }
-
-//       cv::imshow("Camera", input_image);
-        // Wait for the user to close the window
-//       cv::waitKey(1);
     }
 
-    destroyAllWindows();
+    destroyAllWindows(); // Destroy all OpenCV windoes
     closeCV();  // Disable the camera
 
     return 0;
 }
-
-
-
