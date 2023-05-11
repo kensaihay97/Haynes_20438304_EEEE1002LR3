@@ -599,6 +599,7 @@ int main(int argc, char** argv)
                 //cout << "Yellow line following" << endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 yellow_line();
+                break;
             default:
                 //cout << " Default black line following" << endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
